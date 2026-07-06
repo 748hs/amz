@@ -3,8 +3,8 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, getDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 import { DBState, Test, Participant, Submission, ActiveSession, Question } from "./src/types.js";
 import { GoogleGenAI, Type } from "@google/genai";
 
@@ -38,17 +38,11 @@ let dbFirestore: any = null;
 if (fs.existsSync(firebaseConfigPath)) {
   try {
     const config = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
-    const firebaseConfig = {
-      apiKey: config.apiKey,
-      authDomain: config.authDomain,
+    firebaseApp = initializeApp({
       projectId: config.projectId,
-      storageBucket: config.storageBucket,
-      messagingSenderId: config.messagingSenderId,
-      appId: config.appId,
-    };
-    firebaseApp = initializeApp(firebaseConfig);
+    });
     dbFirestore = getFirestore(firebaseApp, config.firestoreDatabaseId || "(default)");
-    console.log("Firebase initialized successfully with database ID:", config.firestoreDatabaseId);
+    console.log("Firebase Admin SDK initialized successfully with database ID:", config.firestoreDatabaseId);
   } catch (err) {
     console.error("Failed to initialize Firebase:", err);
   }
@@ -66,30 +60,30 @@ async function syncFromFirestore(): Promise<void> {
     const db = readDB();
 
     // 1. Sync tests
-    const testsSnapshot = await getDocs(collection(dbFirestore, "tests"));
+    const testsSnapshot = await dbFirestore.collection("tests").get();
     const cloudTests: Test[] = [];
-    testsSnapshot.forEach((doc) => {
+    testsSnapshot.forEach((doc: any) => {
       cloudTests.push(doc.data() as Test);
     });
 
     // 2. Sync participants
-    const participantsSnapshot = await getDocs(collection(dbFirestore, "participants"));
+    const participantsSnapshot = await dbFirestore.collection("participants").get();
     const cloudParticipants: Participant[] = [];
-    participantsSnapshot.forEach((doc) => {
+    participantsSnapshot.forEach((doc: any) => {
       cloudParticipants.push(doc.data() as Participant);
     });
 
     // 3. Sync submissions
-    const submissionsSnapshot = await getDocs(collection(dbFirestore, "submissions"));
+    const submissionsSnapshot = await dbFirestore.collection("submissions").get();
     const cloudSubmissions: Submission[] = [];
-    submissionsSnapshot.forEach((doc) => {
+    submissionsSnapshot.forEach((doc: any) => {
       cloudSubmissions.push(doc.data() as Submission);
     });
 
     // 4. Sync active sessions
-    const activeSessionsSnapshot = await getDocs(collection(dbFirestore, "activeSessions"));
+    const activeSessionsSnapshot = await dbFirestore.collection("activeSessions").get();
     const cloudActiveSessions: ActiveSession[] = [];
-    activeSessionsSnapshot.forEach((doc) => {
+    activeSessionsSnapshot.forEach((doc: any) => {
       cloudActiveSessions.push(doc.data() as ActiveSession);
     });
 
@@ -99,7 +93,7 @@ async function syncFromFirestore(): Promise<void> {
     } else if (db.tests.length > 0) {
       console.log(`Cloud tests collection is empty. Uploading ${db.tests.length} local tests...`);
       for (const t of db.tests) {
-        await setDoc(doc(dbFirestore, "tests", t.id), t);
+        await dbFirestore.collection("tests").doc(t.id).set(t);
       }
     }
 
@@ -108,7 +102,7 @@ async function syncFromFirestore(): Promise<void> {
     } else if (db.participants.length > 0) {
       console.log(`Cloud participants collection is empty. Uploading ${db.participants.length} local participants...`);
       for (const p of db.participants) {
-        await setDoc(doc(dbFirestore, "participants", p.id), p);
+        await dbFirestore.collection("participants").doc(p.id).set(p);
       }
     }
 
@@ -118,7 +112,7 @@ async function syncFromFirestore(): Promise<void> {
       console.log(`Cloud submissions collection is empty. Uploading ${db.submissions.length} local submissions...`);
       for (const s of db.submissions) {
         const id = `${s.testId}_${s.studentId}`;
-        await setDoc(doc(dbFirestore, "submissions", id), s);
+        await dbFirestore.collection("submissions").doc(id).set(s);
       }
     }
 
@@ -127,7 +121,7 @@ async function syncFromFirestore(): Promise<void> {
     } else if (db.activeSessions.length > 0) {
       console.log(`Cloud activeSessions collection is empty. Uploading ${db.activeSessions.length} local sessions...`);
       for (const s of db.activeSessions) {
-        await setDoc(doc(dbFirestore, "activeSessions", s.studentId), s);
+        await dbFirestore.collection("activeSessions").doc(s.studentId).set(s);
       }
     }
 
@@ -141,7 +135,7 @@ async function syncFromFirestore(): Promise<void> {
 async function saveTestToCloud(test: Test): Promise<void> {
   if (!dbFirestore) return;
   try {
-    await setDoc(doc(dbFirestore, "tests", test.id), test);
+    await dbFirestore.collection("tests").doc(test.id).set(test);
   } catch (err) {
     console.error("Error saving test to Firestore:", err);
   }
@@ -150,12 +144,12 @@ async function saveTestToCloud(test: Test): Promise<void> {
 async function deleteTestFromCloud(testId: string): Promise<void> {
   if (!dbFirestore) return;
   try {
-    await deleteDoc(doc(dbFirestore, "tests", testId));
+    await dbFirestore.collection("tests").doc(testId).delete();
     const db = readDB();
     const submissionsToDelete = db.submissions.filter(s => s.testId === testId);
     for (const s of submissionsToDelete) {
       const id = `${s.testId}_${s.studentId}`;
-      await deleteDoc(doc(dbFirestore, "submissions", id));
+      await dbFirestore.collection("submissions").doc(id).delete();
     }
   } catch (err) {
     console.error("Error deleting test from Firestore:", err);
@@ -165,7 +159,7 @@ async function deleteTestFromCloud(testId: string): Promise<void> {
 async function saveParticipantToCloud(participant: Participant): Promise<void> {
   if (!dbFirestore) return;
   try {
-    await setDoc(doc(dbFirestore, "participants", participant.id), participant);
+    await dbFirestore.collection("participants").doc(participant.id).set(participant);
   } catch (err) {
     console.error("Error saving participant to Firestore:", err);
   }
@@ -175,7 +169,7 @@ async function saveSubmissionToCloud(submission: Submission): Promise<void> {
   if (!dbFirestore) return;
   try {
     const id = `${submission.testId}_${submission.studentId}`;
-    await setDoc(doc(dbFirestore, "submissions", id), submission);
+    await dbFirestore.collection("submissions").doc(id).set(submission);
   } catch (err) {
     console.error("Error saving submission to Firestore:", err);
   }
@@ -185,7 +179,7 @@ async function deleteSubmissionFromCloud(testId: string, studentId: string): Pro
   if (!dbFirestore) return;
   try {
     const id = `${testId}_${studentId}`;
-    await deleteDoc(doc(dbFirestore, "submissions", id));
+    await dbFirestore.collection("submissions").doc(id).delete();
   } catch (err) {
     console.error("Error deleting submission from Firestore:", err);
   }
@@ -194,7 +188,7 @@ async function deleteSubmissionFromCloud(testId: string, studentId: string): Pro
 async function saveActiveSessionToCloud(session: ActiveSession): Promise<void> {
   if (!dbFirestore) return;
   try {
-    await setDoc(doc(dbFirestore, "activeSessions", session.studentId), session);
+    await dbFirestore.collection("activeSessions").doc(session.studentId).set(session);
   } catch (err) {
     console.error("Error saving active session to Firestore:", err);
   }
@@ -203,7 +197,7 @@ async function saveActiveSessionToCloud(session: ActiveSession): Promise<void> {
 async function deleteActiveSessionFromCloud(studentId: string): Promise<void> {
   if (!dbFirestore) return;
   try {
-    await deleteDoc(doc(dbFirestore, "activeSessions", studentId));
+    await dbFirestore.collection("activeSessions").doc(studentId).delete();
   } catch (err) {
     console.error("Error deleting active session from Firestore:", err);
   }

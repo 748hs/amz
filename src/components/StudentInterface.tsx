@@ -29,9 +29,26 @@ interface StudentInterfaceProps {
 }
 
 export default function StudentInterface({ tests, refreshTests, onOpenAdminLogin }: StudentInterfaceProps) {
-  // Auth/Welcome State
-  const [studentId, setStudentId] = useState<string | null>(null);
-  const [nickname, setNickname] = useState<string>("");
+  // Auth/Welcome State (Synchronously auto-initialized as guest session)
+  const [studentId, setStudentId] = useState<string | null>(() => {
+    let localId = getLocalStudentId();
+    if (!localId) {
+      localId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem("testing_platform_student_id", localId);
+    }
+    return localId;
+  });
+
+  const [nickname, setNickname] = useState<string>(() => {
+    let localNick = getLocalNickname();
+    if (!localNick) {
+      const randSuffix = Math.floor(1000 + Math.random() * 9000);
+      localNick = `Guest Student #${randSuffix}`;
+      localStorage.setItem("testing_platform_nickname", localNick);
+    }
+    return localNick;
+  });
+
   const [nicknameInput, setNicknameInput] = useState<string>("");
   const [registering, setRegistering] = useState(false);
 
@@ -69,16 +86,19 @@ export default function StudentInterface({ tests, refreshTests, onOpenAdminLogin
 
   // Init local student info
   useEffect(() => {
-    const localId = getLocalStudentId();
-    const localNick = getLocalNickname();
-    if (localId && localNick) {
-      setStudentId(localId);
-      setNickname(localNick);
-      api.registerStudent(localNick, localId)
-        .then(() => fetchCompletedTests(localId))
+    if (studentId && nickname) {
+      api.registerStudent(nickname, studentId)
+        .then(() => {
+          if (studentId) fetchCompletedTests(studentId);
+        })
         .catch((err) => {
-          if (err.message === "BLOCKED") {
+          if (err && err.message === "BLOCKED") {
             setIsBlocked(true);
+          } else {
+            console.warn("Silent guest session registration status:", err);
+            if (studentId) {
+              fetchCompletedTests(studentId).catch(() => {});
+            }
           }
         });
     }
@@ -989,7 +1009,7 @@ export default function StudentInterface({ tests, refreshTests, onOpenAdminLogin
             </div>
             <div>
               <span className="text-sm font-bold tracking-tight text-slate-900 block">Maranatha Exam Pro</span>
-              <p className="text-[10px] text-slate-400">Welcome, <strong className="text-slate-600 font-semibold">{nickname}</strong> (Student Profile)</p>
+              <p className="text-[10px] text-slate-400">Welcome, <strong className="text-slate-600 font-semibold">{nickname}</strong> (Guest Session)</p>
             </div>
           </div>
 
@@ -1014,23 +1034,11 @@ export default function StudentInterface({ tests, refreshTests, onOpenAdminLogin
           <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 text-white p-6 sm:p-8 rounded-3xl shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
             <div className="absolute right-0 top-0 h-44 w-44 bg-indigo-500/10 rounded-full blur-3xl -mr-12 -mt-12 -z-10"></div>
             <div className="space-y-2">
-              <h2 className="text-xl font-bold text-slate-100">Welcome to the Exam Room, {nickname}!</h2>
+              <h2 className="text-xl font-bold text-slate-100">Welcome to the Exam Room!</h2>
               <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
                 Choose an exam from the bank below to begin. Tests feature a continuous 30-minute timer and will submit automatically. Correct answers and grades will be revealed strictly upon paper completion.
               </p>
             </div>
-            <button
-              onClick={() => {
-                if (confirm("Would you like to register with a different name?")) {
-                  saveLocalStudent("", "");
-                  setStudentId(null);
-                  setNickname("");
-                }
-              }}
-              className="bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white text-[11px] font-semibold border border-white/10 px-4 py-2 rounded-xl transition-all cursor-pointer shadow-sm"
-            >
-              Change Student Identity
-            </button>
           </div>
 
           {/* Test Listing section */}

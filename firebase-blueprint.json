@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "Test": {
+      "title": "Test",
+      "description": "An exam or test paper",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "questions": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "title"]
+    },
+    "Participant": {
+      "title": "Participant",
+      "description": "A student participant record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nickname": { "type": "string" },
+        "registeredAt": { "type": "string" }
+      },
+      "required": ["id", "nickname"]
+    },
+    "Submission": {
+      "title": "Submission",
+      "description": "An exam submission by a student",
+      "type": "object",
+      "properties": {
+        "testId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "answers": { "type": "object" },
+        "score": { "type": "number" },
+        "totalQuestions": { "type": "number" },
+        "submittedAt": { "type": "string" }
+      },
+      "required": ["testId", "studentId", "answers"]
+    },
+    "ActiveSession": {
+      "title": "ActiveSession",
+      "description": "An ongoing test taking session",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "testId": { "type": "string" },
+        "startedAt": { "type": "string" },
+        "answers": { "type": "object" }
+      },
+      "required": ["studentId", "testId", "startedAt"]
+    }
+  },
+  "firestore": {
+    "tests/{testId}": {
+      "schema": "Test",
+      "description": "Collection of exam papers"
+    },
+    "participants/{participantId}": {
+      "schema": "Participant",
+      "description": "Collection of students"
+    },
+    "submissions/{submissionId}": {
+      "schema": "Submission",
+      "description": "Collection of test submissions"
+    },
+    "activeSessions/{sessionId}": {
+      "schema": "ActiveSession",
+      "description": "Collection of active testing sessions"
+    }
+  }
+}
