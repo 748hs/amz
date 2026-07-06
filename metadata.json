@@ -1,0 +1,6 @@
+{
+  "name": "Online Testing Platform",
+  "description": "A professional online testing platform with full administrator controls, live participant monitoring, exam timer, and automatic marking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
